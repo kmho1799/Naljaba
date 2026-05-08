@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import { hasSupabaseEnv, getSupabaseEnv } from "@/lib/supabase/env";
 
-const publicRoutes = ["/login", "/auth/callback"];
+const publicRoutes = ["/login", "/auth/callback", "/privacy", "/terms"];
 
 type CookieToSet = {
   name: string;

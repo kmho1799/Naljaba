@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 
 import { signOut } from "@/app/actions";
+import { AppFooter } from "@/components/app-footer";
 import { Logo } from "@/components/logo";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ type AppShellProps = {
 
 export function AppShell({ profile, children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur">
         <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between pl-4 pr-3 sm:px-6">
           <div className="pt-1">
@@ -41,7 +42,8 @@ export function AppShell({ profile, children }: AppShellProps) {
           </div>
         </div>
       </header>
-      {children}
+      <div className="flex-1">{children}</div>
+      <AppFooter />
     </div>
   );
 }
