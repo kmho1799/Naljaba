@@ -47,7 +47,7 @@ http://localhost:3000/auth/callback
 - `/rooms/new`: 방 생성
 - `/invite/[inviteCode]`: 초대 링크 입장
 - `/rooms/[roomId]`: 공동 캘린더
-- `/rooms/[roomId]/members`: 멤버 및 방 관리
+- `/rooms/[roomId]/members`: 멤버 및 방 정보
 
 ## MVP 정책
 
@@ -55,6 +55,7 @@ http://localhost:3000/auth/callback
 - 방 이름은 중복 가능
 - 초대 링크와 방 비밀번호로 입장
 - 방 비밀번호는 해시로 저장
+- 캘린더 간편 입력으로 내 일정을 날짜별로 추가/삭제 가능
 - 방장과 작성자만 일정 수정/삭제 가능
 - 일반 멤버는 퇴장 가능
 - 방장은 방 삭제/방장 위임이 없으므로 퇴장 불가

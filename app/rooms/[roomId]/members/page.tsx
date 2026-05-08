@@ -39,7 +39,7 @@ export default async function MembersPage({ params, searchParams }: MembersPageP
           </Button>
           <div>
             <p className="text-xs font-medium text-muted-foreground">{room.name}</p>
-            <h1 className="text-lg font-bold">방 관리</h1>
+            <h1 className="text-lg font-bold">방 정보</h1>
           </div>
         </div>
       </div>

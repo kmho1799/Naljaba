@@ -12,6 +12,16 @@ function readString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readOptionalString(formData: FormData, key: string) {
+  const value = readString(formData, key);
+  return value || null;
+}
+
+type ActionResult = {
+  ok: boolean;
+  error?: string;
+};
+
 async function requireSupabase() {
   const supabase = await createClient();
   if (!supabase) {
@@ -84,6 +94,8 @@ export async function joinRoom(formData: FormData) {
 export async function createEvent(formData: FormData) {
   const roomId = readString(formData, "roomId");
   const eventDate = readString(formData, "eventDate");
+  const startTime = readOptionalString(formData, "startTime");
+  const endTime = readOptionalString(formData, "endTime");
   const title = readString(formData, "title");
   const description = readString(formData, "description");
   const supabase = await requireSupabase();
@@ -98,6 +110,8 @@ export async function createEvent(formData: FormData) {
     room_id: roomId,
     creator_id: user.id,
     event_date: eventDate,
+    start_time: startTime,
+    end_time: endTime,
     title,
     description
   });
@@ -108,17 +122,52 @@ export async function createEvent(formData: FormData) {
   redirect(`/rooms/${roomId}?date=${eventDate}`);
 }
 
+export async function quickMarkEvent(formData: FormData): Promise<ActionResult> {
+  const roomId = readString(formData, "roomId");
+  const eventDate = readString(formData, "eventDate");
+  const supabase = await requireSupabase();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+
+  const { error } = await supabase.from("events").insert({
+    room_id: roomId,
+    creator_id: user.id,
+    event_date: eventDate,
+    title: "일정",
+    start_time: null,
+    end_time: null,
+    description: null
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { ok: true };
+}
+
 export async function updateEvent(formData: FormData) {
   const roomId = readString(formData, "roomId");
   const eventId = readString(formData, "eventId");
   const eventDate = readString(formData, "eventDate");
+  const startTime = readOptionalString(formData, "startTime");
+  const endTime = readOptionalString(formData, "endTime");
   const title = readString(formData, "title");
   const description = readString(formData, "description");
   const supabase = await requireSupabase();
 
   const { error } = await supabase
     .from("events")
-    .update({ title, description, updated_at: new Date().toISOString() })
+    .update({
+      title,
+      description,
+      start_time: startTime,
+      end_time: endTime,
+      updated_at: new Date().toISOString()
+    })
     .eq("id", eventId)
     .eq("room_id", roomId);
 
@@ -143,6 +192,40 @@ export async function deleteEvent(formData: FormData) {
 
   revalidatePath(`/rooms/${roomId}`);
   redirect(`/rooms/${roomId}?date=${eventDate}`);
+}
+
+export async function deleteMyEventsOnDate(formData: FormData): Promise<ActionResult> {
+  const roomId = readString(formData, "roomId");
+  const eventDate = readString(formData, "eventDate");
+  const supabase = await requireSupabase();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+
+  const { data: events, error: findError } = await supabase
+    .from("events")
+    .select("id")
+    .eq("room_id", roomId)
+    .eq("event_date", eventDate)
+    .eq("creator_id", user.id)
+    .is("deleted_at", null);
+
+  if (findError) return { ok: false, error: findError.message };
+
+  for (const event of events || []) {
+    const { error } = await supabase.rpc("delete_event", {
+      p_room_id: roomId,
+      p_event_id: event.id
+    });
+
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { ok: true };
 }
 
 export async function updateMyRoomColor(formData: FormData) {
@@ -191,4 +274,121 @@ export async function leaveRoom(formData: FormData) {
 
   revalidatePath("/rooms");
   redirect("/rooms");
+}
+
+export async function bulkCreateEvents(formData: FormData) {
+  const roomId = readString(formData, "roomId");
+  const eventDates = readString(formData, "eventDates").split(",").map((d) => d.trim()).filter(Boolean);
+  const startTime = readOptionalString(formData, "startTime");
+  const endTime = readOptionalString(formData, "endTime");
+  const title = readString(formData, "title");
+  const description = readString(formData, "description");
+  const supabase = await requireSupabase();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const rows = eventDates.map((event_date) => ({
+    room_id: roomId,
+    creator_id: user.id,
+    event_date,
+    start_time: startTime,
+    end_time: endTime,
+    title,
+    description
+  }));
+
+  const { error } = await supabase.from("events").insert(rows);
+
+  const lastDate = eventDates[eventDates.length - 1] || "";
+  if (error) redirect(`/rooms/${roomId}?date=${lastDate}&error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath(`/rooms/${roomId}`);
+  redirect(`/rooms/${roomId}?date=${lastDate}`);
+}
+
+export async function createTemplate(formData: FormData) {
+  const roomId = readString(formData, "roomId");
+  const selectedDate = readString(formData, "selectedDate");
+  const title = readString(formData, "title");
+  const description = readOptionalString(formData, "description");
+  const startTime = readOptionalString(formData, "startTime");
+  const endTime = readOptionalString(formData, "endTime");
+  const base = `/rooms/${roomId}?date=${selectedDate}`;
+
+  if (startTime && endTime && endTime < startTime) {
+    redirect(`${base}&error=${encodeURIComponent("종료 시간은 시작 시간보다 빠를 수 없습니다.")}`);
+  }
+
+  const supabase = await requireSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase.from("event_templates").insert({
+    user_id: user.id,
+    title,
+    description,
+    start_time: startTime,
+    end_time: endTime
+  });
+
+  if (error) redirect(`${base}&error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath(`/rooms/${roomId}`);
+  redirect(base);
+}
+
+export async function updateTemplate(formData: FormData) {
+  const roomId = readString(formData, "roomId");
+  const selectedDate = readString(formData, "selectedDate");
+  const templateId = readString(formData, "templateId");
+  const title = readString(formData, "title");
+  const description = readOptionalString(formData, "description");
+  const startTime = readOptionalString(formData, "startTime");
+  const endTime = readOptionalString(formData, "endTime");
+  const base = `/rooms/${roomId}?date=${selectedDate}`;
+
+  if (startTime && endTime && endTime < startTime) {
+    redirect(`${base}&error=${encodeURIComponent("종료 시간은 시작 시간보다 빠를 수 없습니다.")}`);
+  }
+
+  const supabase = await requireSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase
+    .from("event_templates")
+    .update({ title, description, start_time: startTime, end_time: endTime })
+    .eq("id", templateId)
+    .eq("user_id", user.id);
+
+  if (error) redirect(`${base}&error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath(`/rooms/${roomId}`);
+  redirect(base);
+}
+
+export async function deleteTemplate(formData: FormData) {
+  const roomId = readString(formData, "roomId");
+  const selectedDate = readString(formData, "selectedDate");
+  const templateId = readString(formData, "templateId");
+  const base = `/rooms/${roomId}?date=${selectedDate}`;
+
+  const supabase = await requireSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase
+    .from("event_templates")
+    .delete()
+    .eq("id", templateId)
+    .eq("user_id", user.id);
+
+  if (error) redirect(`${base}&error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath(`/rooms/${roomId}`);
+  redirect(base);
 }

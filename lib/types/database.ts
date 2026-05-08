@@ -31,6 +31,8 @@ export type CalendarEvent = {
   room_id: string;
   creator_id: string;
   event_date: string;
+  start_time: string | null;
+  end_time: string | null;
   title: string;
   description: string | null;
   created_at: string;
@@ -38,11 +40,21 @@ export type CalendarEvent = {
   deleted_at: string | null;
 };
 
+export type EventTemplate = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  created_at: string;
+};
+
 export type RoomListItem = Room & {
   my_role: "owner" | "member";
   my_color: string;
   members: RoomMember[];
-  upcoming_event_count: number;
+  today_event_count: number;
 };
 
 export type RoomDetail = Room & {

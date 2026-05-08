@@ -42,8 +42,8 @@ export default async function RoomsPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {rooms.map((room) => (
-              <Link key={room.id} href={`/rooms/${room.id}`} className="group">
-                <Card className="overflow-hidden transition group-hover:-translate-y-0.5 group-hover:shadow-soft">
+              <Link key={room.id} href={`/rooms/${room.id}`} className="group h-full">
+                <Card className="h-full overflow-hidden transition group-hover:-translate-y-0.5 group-hover:shadow-soft">
                   <div className="h-1.5" style={{ backgroundColor: room.my_color }} />
                   <div className="p-5">
                     <div className="mb-4 flex items-start justify-between gap-3">
@@ -67,15 +67,15 @@ export default async function RoomsPage() {
                       </div>
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
-                        {room.members.length}명 · 일정 {room.upcoming_event_count}개
+                        {room.members.length}명 · 오늘 일정 {room.today_event_count}개
                       </span>
                     </div>
                   </div>
                 </Card>
               </Link>
             ))}
-            <Link href="/rooms/new">
-              <Card className="flex min-h-[186px] flex-col items-center justify-center gap-3 border-dashed bg-transparent text-sm font-semibold text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary">
+            <Link href="/rooms/new" className="h-full">
+              <Card className="flex h-full min-h-[120px] flex-col items-center justify-center gap-3 border-dashed bg-transparent text-sm font-semibold text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
                   <Plus className="h-5 w-5" />
                 </span>

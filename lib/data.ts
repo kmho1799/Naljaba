@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CalendarEvent,
+  EventTemplate,
   Profile,
   Room,
   RoomDetail,
@@ -73,7 +74,7 @@ export async function getRooms(): Promise<RoomListItem[]> {
           .select("id", { count: "exact", head: true })
           .eq("room_id", room.id)
           .is("deleted_at", null)
-          .gte("event_date", todayKey())
+          .eq("event_date", todayKey())
       ]);
 
       return {
@@ -81,7 +82,7 @@ export async function getRooms(): Promise<RoomListItem[]> {
         my_role: membership.role,
         my_color: membership.color,
         members: membersResult,
-        upcoming_event_count: eventsResult.count || 0
+        today_event_count: eventsResult.count || 0
       } satisfies RoomListItem;
     })
   );
@@ -124,7 +125,7 @@ export async function getRoomDetail(
 
   let eventsQuery = supabase
     .from("events")
-    .select("id, room_id, creator_id, event_date, title, description, created_at, updated_at, deleted_at")
+    .select("id, room_id, creator_id, event_date, start_time, end_time, title, description, created_at, updated_at, deleted_at")
     .eq("room_id", roomId)
     .is("deleted_at", null)
     .in("creator_id", activeMemberIds.length ? activeMemberIds : ["00000000-0000-0000-0000-000000000000"])
@@ -164,4 +165,19 @@ export async function getInvitePreview(inviteCode: string): Promise<{
 
 export function profileName(profile?: Profile | null) {
   return profile?.display_name || profile?.email || "이름 없음";
+}
+
+export async function getMyTemplates(): Promise<EventTemplate[]> {
+  const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!supabase || !user) return [];
+
+  const { data, error } = await supabase
+    .from("event_templates")
+    .select("id, user_id, title, description, start_time, end_time, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
+
+  if (error) return [];
+  return (data || []) as EventTemplate[];
 }

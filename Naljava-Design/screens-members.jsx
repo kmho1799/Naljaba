@@ -24,7 +24,7 @@ function MembersScreen({ roomId }) {
           <button className="btn btn-ghost btn-icon" onClick={() => navigate(`#/r/${room.id}`)}><IconArrowLeft size={16}/></button>
           <div style={{flex:1}}>
             <div style={{fontSize:12,color:"var(--fg-muted)",fontWeight:500}}>{room.name}</div>
-            <h1 style={{fontSize:18,fontWeight:700,letterSpacing:"-0.01em",margin:0}}>방 관리</h1>
+            <h1 style={{fontSize:18,fontWeight:700,letterSpacing:"-0.01em",margin:0}}>방 정보</h1>
           </div>
         </div>
       </div>

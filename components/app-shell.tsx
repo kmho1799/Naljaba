@@ -15,8 +15,10 @@ export function AppShell({ profile, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between px-6">
-          <Logo className="h-11 w-[176px]" />
+        <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between pl-4 pr-3 sm:px-6">
+          <div className="pt-1">
+            <Logo className="h-11 w-[176px]" mobileMark />
+          </div>
           <div className="flex items-center gap-2">
             {profile ? (
               <div className="hidden items-center gap-2 sm:flex">

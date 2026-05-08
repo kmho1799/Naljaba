@@ -167,7 +167,7 @@ function RoomBar({ room, meId, onInvite }) {
             <IconLink size={14}/> 초대
           </button>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate(`#/r/${room.id}/members`)}>
-            <IconSettings size={14}/> 방 관리
+            <IconSettings size={14}/> 방 정보
           </button>
         </div>
       </div>

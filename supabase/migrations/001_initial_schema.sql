@@ -34,11 +34,18 @@ create table public.events (
   room_id uuid not null references public.rooms(id) on delete cascade,
   creator_id uuid not null references public.profiles(id) on delete cascade,
   event_date date not null,
+  start_time time,
+  end_time time,
   title text not null check (length(trim(title)) > 0),
   description text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  constraint events_time_order_check check (
+    start_time is null
+    or end_time is null
+    or end_time >= start_time
+  )
 );
 
 create index room_members_user_active_idx on public.room_members(user_id, left_at);
