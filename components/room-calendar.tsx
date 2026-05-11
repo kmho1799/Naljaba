@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Zap } from "lucide-react";
 
 import { deleteEvent, deleteMyEventsOnDate, quickMarkEvent } from "@/app/actions";
@@ -128,7 +128,7 @@ export function RoomCalendar({
   function closeSheet() {
     setSheetOpen(false);
     if (sheetView === "form" && editingEvent) {
-      router.push(`/rooms/${roomId}?date=${selected}`);
+      router.push(roomCalendarHref(roomId, year, monthIndex, selected));
     }
   }
 
@@ -301,6 +301,8 @@ export function RoomCalendar({
                   canManage={isOwner || event.creator_id === profileId}
                   roomId={roomId}
                   selected={selected}
+                  calendarYear={year}
+                  calendarMonth={monthIndex}
                 />
               ))
             )}
@@ -312,6 +314,8 @@ export function RoomCalendar({
             key={`${selected}-${editingEvent?.id ?? "new"}`}
             roomId={roomId}
             selected={selected}
+            calendarYear={year}
+            calendarMonth={monthIndex}
             editingEvent={editingEvent}
             templates={templates}
             myColor={myColor}
@@ -355,6 +359,8 @@ export function RoomCalendar({
                     canManage={isOwner || event.creator_id === profileId}
                     roomId={roomId}
                     selected={selected}
+                    calendarYear={year}
+                    calendarMonth={monthIndex}
                   />
                 ))
               )}
@@ -394,10 +400,16 @@ export function RoomCalendar({
                 key={`${selected}-${editingEvent?.id ?? "new"}-mobile`}
                 roomId={roomId}
                 selected={selected}
+                calendarYear={year}
+                calendarMonth={monthIndex}
                 editingEvent={editingEvent}
                 templates={templates}
                 myColor={myColor}
                 error={error}
+                onCreateSuccess={() => {
+                  setSheetOpen(false);
+                  setSheetView("events");
+                }}
               />
             </div>
           </>
@@ -413,13 +425,41 @@ function EventItem({
   canManage,
   roomId,
   selected,
+  calendarYear,
+  calendarMonth,
 }: {
   event: CalendarEvent;
   member?: RoomMember;
   canManage: boolean;
   roomId: string;
   selected: string;
+  calendarYear: number;
+  calendarMonth: number;
 }) {
+  const router = useRouter();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleDeleteSubmit(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    const formData = new FormData(formEvent.currentTarget);
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const result = await deleteEvent(formData);
+      if (!result.ok) {
+        setDeleteError(result.error || "일정을 삭제할 수 없습니다.");
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border bg-card p-3">
       <div className="flex items-start gap-3">
@@ -438,15 +478,17 @@ function EventItem({
             {canManage ? (
               <div className="flex gap-1">
                 <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/rooms/${roomId}?date=${selected}&edit=${event.id}`}>
+                  <Link href={`${roomCalendarHref(roomId, calendarYear, calendarMonth, selected)}&edit=${event.id}`}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Link>
                 </Button>
-                <form action={deleteEvent}>
+                <form onSubmit={handleDeleteSubmit}>
                   <input type="hidden" name="roomId" value={roomId} />
                   <input type="hidden" name="eventId" value={event.id} />
                   <input type="hidden" name="eventDate" value={selected} />
-                  <Button variant="ghost" size="icon" className="text-destructive">
+                  <input type="hidden" name="calendarYear" value={calendarYear} />
+                  <input type="hidden" name="calendarMonth" value={calendarMonth} />
+                  <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </form>
@@ -455,6 +497,9 @@ function EventItem({
           </div>
           {event.description ? (
             <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{event.description}</p>
+          ) : null}
+          {deleteError ? (
+            <p className="mt-2 text-xs text-destructive">{deleteError}</p>
           ) : null}
         </div>
       </div>
@@ -468,7 +513,11 @@ function profileName(profile?: Profile | null) {
 
 function monthHref(roomId: string, year: number, monthIndex: number, selected: string) {
   const date = new Date(year, monthIndex, 1);
-  return `/rooms/${roomId}?y=${date.getFullYear()}&m=${date.getMonth()}&date=${selected}`;
+  return roomCalendarHref(roomId, date.getFullYear(), date.getMonth(), selected);
+}
+
+function roomCalendarHref(roomId: string, year: number, monthIndex: number, selected: string) {
+  return `/rooms/${roomId}?y=${year}&m=${monthIndex}&date=${selected}`;
 }
 
 function normalizeTime(time?: string | null) {

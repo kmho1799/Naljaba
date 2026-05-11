@@ -70,3 +70,13 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+## 인증 세션 유지 정책
+
+- Google OAuth는 최초 인증 수단으로만 사용합니다.
+- 서비스 로그인 유지는 Supabase Auth의 access token / refresh token 세션을 사용합니다.
+- Google refresh token은 Calendar, Drive, Gmail 같은 Google API 백그라운드 접근이 필요할 때만 별도로 검토합니다.
+- OAuth callback과 로그인 시작 단계의 `next` 값은 내부 경로만 허용합니다.
+- 보호 라우트 응답과 인증 redirect 응답은 `private, no-store` 캐시 정책을 사용합니다.
+- 쿠키 기반 인증의 CSRF 위험을 줄이기 위해 상태 변경 요청은 same-origin `Origin`만 허용합니다.
+- 사용자가 로그아웃하면 Supabase 서비스 세션만 종료하며, Google 계정 로그아웃이나 권한 철회는 수행하지 않습니다.

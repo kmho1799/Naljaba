@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useState } from "react";
 import { CalendarPlus, ChevronLeft, ChevronRight, Pencil, Trash2, X } from "lucide-react";
 
 import { bulkCreateEvents, createTemplate, deleteTemplate, updateEvent, updateTemplate } from "@/app/actions";
@@ -17,13 +18,27 @@ import { cn } from "@/lib/utils";
 type Props = {
   roomId: string;
   selected: string;
+  calendarYear: number;
+  calendarMonth: number;
   editingEvent?: CalendarEvent | null;
   templates: EventTemplate[];
   myColor?: string;
   error?: string;
+  onCreateSuccess?: () => void;
 };
 
-export function EventForm({ roomId, selected, editingEvent, templates, myColor, error }: Props) {
+export function EventForm({
+  roomId,
+  selected,
+  calendarYear,
+  calendarMonth,
+  editingEvent,
+  templates,
+  myColor,
+  error,
+  onCreateSuccess
+}: Props) {
+  const router = useRouter();
   const isEditing = !!editingEvent;
 
   const [dates, setDates] = useState<string[]>([selected]);
@@ -39,6 +54,12 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
   const [description, setDescription] = useState(editingEvent?.description ?? "");
   const [startTime, setStartTime] = useState(normalizeTime(editingEvent?.start_time));
   const [endTime, setEndTime] = useState(normalizeTime(editingEvent?.end_time));
+  const [formError, setFormError] = useState<string | null>(error ?? null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<"event" | "template" | null>(null);
+
+  const isEventPending = pendingAction === "event";
+  const isTemplatePending = pendingAction === "template";
 
   function toggleDate(key: string) {
     setDates((prev) =>
@@ -58,6 +79,105 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
     setStartTime(normalizeTime(t.start_time));
     setEndTime(normalizeTime(t.end_time));
     setShowTemplatePanel(false);
+  }
+
+  async function handleEventSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    setPendingAction("event");
+    setFormError(null);
+
+    try {
+      const result = isEditing
+        ? await updateEvent(formData)
+        : await bulkCreateEvents(formData);
+
+      if (!result.ok) {
+        setFormError(result.error || "일정을 저장할 수 없습니다.");
+        return;
+      }
+
+      if (isEditing) {
+        router.replace(roomCalendarHref(roomId, selected, calendarYear, calendarMonth));
+      } else {
+        setDates([selected]);
+        setShowCalendar(false);
+        setTitle("");
+        setDescription("");
+        setStartTime("");
+        setEndTime("");
+        onCreateSuccess?.();
+      }
+      router.refresh();
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleCreateTemplateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    setPendingAction("template");
+    setTemplateError(null);
+
+    try {
+      const result = await createTemplate(formData);
+      if (!result.ok) {
+        setTemplateError(result.error || "자주 쓰는 일정을 저장할 수 없습니다.");
+        return;
+      }
+
+      form.reset();
+      setShowAddForm(false);
+      router.refresh();
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleUpdateTemplateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    setPendingAction("template");
+    setTemplateError(null);
+
+    try {
+      const result = await updateTemplate(formData);
+      if (!result.ok) {
+        setTemplateError(result.error || "자주 쓰는 일정을 수정할 수 없습니다.");
+        return;
+      }
+
+      setEditingTemplateId(null);
+      router.refresh();
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleDeleteTemplateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    setPendingAction("template");
+    setTemplateError(null);
+
+    try {
+      const result = await deleteTemplate(formData);
+      if (!result.ok) {
+        setTemplateError(result.error || "자주 쓰는 일정을 삭제할 수 없습니다.");
+        return;
+      }
+
+      setEditingTemplateId(null);
+      router.refresh();
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   function goPrevMonth() {
@@ -95,16 +215,20 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
       {/* 자주 쓰는 일정 패널 — 메인 폼 밖 */}
       {!isEditing && showTemplatePanel && (
         <div className="mb-4 space-y-2 rounded-lg border bg-secondary/30 p-3">
+          {templateError ? <p className="text-sm text-destructive">{templateError}</p> : null}
+
           {templates.length === 0 && !showAddForm && (
             <p className="text-sm text-muted-foreground">저장된 일정이 없어요.</p>
           )}
 
           {templates.map((t) =>
             editingTemplateId === t.id ? (
-              <form key={t.id} action={updateTemplate} className="space-y-2 rounded-lg border bg-white p-3">
+              <form key={t.id} onSubmit={handleUpdateTemplateSubmit} className="space-y-2 rounded-lg border bg-white p-3">
                 <input type="hidden" name="roomId" value={roomId} />
                 <input type="hidden" name="templateId" value={t.id} />
                 <input type="hidden" name="selectedDate" value={selected} />
+                <input type="hidden" name="calendarYear" value={calendarYear} />
+                <input type="hidden" name="calendarMonth" value={calendarMonth} />
                 <Input name="title" defaultValue={t.title} required placeholder="제목" />
                 <div className="grid grid-cols-2 gap-2">
                   <TimeSelect name="startTime" defaultValue={normalizeTime(t.start_time)} />
@@ -112,7 +236,7 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
                 </div>
                 <Input name="description" defaultValue={t.description ?? ""} placeholder="설명 (선택)" />
                 <div className="flex gap-2">
-                  <Button size="sm">저장</Button>
+                  <Button size="sm" disabled={isTemplatePending}>저장</Button>
                   <Button type="button" size="sm" variant="secondary" onClick={() => setEditingTemplateId(null)}>취소</Button>
                 </div>
               </form>
@@ -137,11 +261,13 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
                 >
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
-                <form action={deleteTemplate}>
+                <form onSubmit={handleDeleteTemplateSubmit}>
                   <input type="hidden" name="roomId" value={roomId} />
                   <input type="hidden" name="templateId" value={t.id} />
                   <input type="hidden" name="selectedDate" value={selected} />
-                  <button type="submit" className="shrink-0 rounded p-1 hover:bg-secondary">
+                  <input type="hidden" name="calendarYear" value={calendarYear} />
+                  <input type="hidden" name="calendarMonth" value={calendarMonth} />
+                  <button type="submit" disabled={isTemplatePending} className="shrink-0 rounded p-1 hover:bg-secondary disabled:opacity-50">
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </button>
                 </form>
@@ -150,9 +276,11 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
           )}
 
           {showAddForm ? (
-            <form action={createTemplate} className="space-y-2 rounded-lg border bg-white p-3">
+            <form onSubmit={handleCreateTemplateSubmit} className="space-y-2 rounded-lg border bg-white p-3">
               <input type="hidden" name="roomId" value={roomId} />
               <input type="hidden" name="selectedDate" value={selected} />
+              <input type="hidden" name="calendarYear" value={calendarYear} />
+              <input type="hidden" name="calendarMonth" value={calendarMonth} />
               <Input name="title" required placeholder="제목 *" />
               <div className="grid grid-cols-2 gap-2">
                 <TimeSelect name="startTime" />
@@ -160,7 +288,7 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
               </div>
               <Input name="description" placeholder="설명 (선택)" />
               <div className="flex gap-2">
-                <Button size="sm">저장</Button>
+                <Button size="sm" disabled={isTemplatePending}>저장</Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => setShowAddForm(false)}>취소</Button>
               </div>
             </form>
@@ -177,8 +305,10 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
       )}
 
       {/* 메인 이벤트 폼 */}
-      <form action={isEditing ? updateEvent : bulkCreateEvents} className="space-y-4">
+      <form onSubmit={handleEventSubmit} className="space-y-4">
         <input type="hidden" name="roomId" value={roomId} />
+        <input type="hidden" name="calendarYear" value={calendarYear} />
+        <input type="hidden" name="calendarMonth" value={calendarMonth} />
         {isEditing ? (
           <>
             <input type="hidden" name="eventId" value={editingEvent.id} />
@@ -299,12 +429,12 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
             placeholder="필요한 메모를 적어주세요"
           />
         </div>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
         <div className="flex gap-2">
-          <Button className="flex-1">{submitLabel}</Button>
+          <Button className="flex-1" disabled={isEventPending}>{submitLabel}</Button>
           {isEditing && (
             <Button variant="secondary" asChild>
-              <Link href={`/rooms/${roomId}?date=${selected}`}>취소</Link>
+              <Link href={roomCalendarHref(roomId, selected, calendarYear, calendarMonth)}>취소</Link>
             </Button>
           )}
         </div>
@@ -326,4 +456,8 @@ export function EventForm({ roomId, selected, editingEvent, templates, myColor, 
 
 function normalizeTime(time?: string | null) {
   return time ? time.slice(0, 5) : "";
+}
+
+function roomCalendarHref(roomId: string, selected: string, calendarYear: number, calendarMonth: number) {
+  return `/rooms/${roomId}?y=${calendarYear}&m=${calendarMonth}&date=${selected}`;
 }
